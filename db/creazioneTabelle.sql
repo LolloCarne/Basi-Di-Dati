@@ -23,15 +23,16 @@ id INT AUTOINCREMENT PRIMARY KEY,
 competenza VARCHAR(50) NOT  NULL UNIQUE 
 );
 
-CREATE TABLE UtenteSkill (
-    utente_email VARCHAR(255),
-    competenza VARCHAR(50),
-    livello INT CHECK (livello BETWEEN 0 AND 5),
-    PRIMARY KEY (utente_email, competenza),
-    FOREIGN KEY (utente_email) REFERENCES Utente(email),
-    FOREIGN KEY (competenza) REFERENCES Skill(competenza)
-
+CREATE TABLE UtenteSkill ( 
+utente_email VARCHAR(255), 
+competenza INT not null, 
+livello INT CHECK (livello BETWEEN 0 AND 5), 
+PRIMARY KEY (utente_email, competenza), 
+FOREIGN KEY (utente_email) 
+REFERENCES Utente(email), 
+FOREIGN KEY (competenza) REFERENCES Skill(id) -- cambiata la referenza sulla tabellaid
 );
+
 
 create TABLE Progetto (
 
