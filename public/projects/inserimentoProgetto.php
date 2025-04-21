@@ -1,9 +1,17 @@
 <?php
+require_once ''; // importa le tue funzioni
+
+// Richiede che l'utente sia loggato
+require_login();
+
+// Richiede che l'utente sia un creator o un admin verificato
+require_permission(['creator', 'admin'], true);
+
 // Connessione al database (personalizza con i tuoi parametri)
 $host = "localhost";
 $user = "root";
 $password = "";
-$database = "nome_del_tuo_database";
+$database = "bostarter";
 
 $conn = new mysqli($host, $user, $password, $database);
 
@@ -14,13 +22,20 @@ if ($conn->connect_error) {
 
 // Controlla se il form è stato inviato
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
+
     $nome = $_POST['nome'];
-    $creatore_email = $_POST['creatore_email'];
     $descrizione = $_POST['descrizione'];
     $budget = $_POST['budget'];
     $data_limite = $_POST['data_limite'];
     $stato = $_POST['stato'];
     $tipo_progetto = $_POST['tipo_progetto'];
+
+    // Ricava l'email dal session
+    $creatore_email = $_SESSION['user_email'] ?? null;
+
+    if (!$creatore_email) {
+        die("Errore: email utente non trovata nella sessione.");
+    }
 
     // Prepara la chiamata alla procedura
     $stmt = $conn->prepare("CALL InserisciProgetto(?, ?, ?, ?, ?, ?, ?)");
@@ -30,7 +45,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if ($stmt->execute()) {
         echo "<p>Progetto inserito correttamente!</p>";
     } else {
-        echo "<p>Errore nell'inserimento: " . $stmt->error . "</p>";
+        echo "<p>Errore nell'inserimento: " . htmlspecialchars($stmt->error) . "</p>";
     }
 
     $stmt->close();
@@ -51,9 +66,6 @@ $conn->close();
 <form method="POST">
     <label for="nome">Nome Progetto</label><br>
     <input type="text" id="nome" name="nome" required><br><br>
-
-    <label for="creatore_email">Email Creatore</label><br>
-    <input type="email" id="creatore_email" name="creatore_email" required><br><br>
 
     <label for="descrizione">Descrizione</label><br>
     <textarea id="descrizione" name="descrizione" rows="4" required></textarea><br><br>
