@@ -1,5 +1,5 @@
 <?php
-require_once '../includes/functions.php'; // importa le tue funzioni
+require_once '../../includes/functions.php'; // importa le tue funzioni
 
 require_login(); // verifica che sia loggato
 

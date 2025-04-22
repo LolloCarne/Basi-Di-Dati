@@ -1,4 +1,5 @@
 <?php
+define('BASE_URL', '/public/');  
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -72,7 +73,7 @@ function check_permission($required_role, bool $require_admin_verified = true): 
  */
 function require_login(string $redirect_to = 'login.php'): void {
     if (!is_logged_in()) {
-        header("Location: " . $redirect_to);
+        header("Location: " . BASE_URL . $redirect_to);
         exit;
     }
 }
