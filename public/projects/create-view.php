@@ -145,4 +145,18 @@ $conn->close();
 
     <label for="stato">Stato</label><br>
     <select id="stato" name="stato" required>
-        <option
+        <option value="aperto">Aperto</option>
+        <option value="chiuso">Chiuso</option>
+    </select><br><br>
+
+    <label for="tipo_progetto">Tipo Progetto</label><br>
+    <select id="tipo_progetto" name="tipo_progetto" required>
+        <option value="hardware">Hardware</option>
+        <option value="software">Software</option>
+    </select><br><br>
+
+    <button type="submit">Inserisci Progetto</button>
+</form>
+</body>
+</html>
+        
