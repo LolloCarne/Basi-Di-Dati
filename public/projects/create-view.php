@@ -107,7 +107,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 
     $stmt = $conn->prepare("CALL InserisciProgetto(?, ?, ?, ?, ?, ?, ?)");
-    $stmt->bind_param("sssdcss", $nome, $creatore_email, $descrizione, $budget, $data_limite, $stato, $tipo_progetto);
+    if (!$stmt) {
+    die("Errore prepare: " . $conn->error);
+        }
+
+        $stmt->bind_param("sssdsss", $nome, $creatore_email, $descrizione, $budget, $data_limite, $stato, $tipo_progetto);
 
     if ($stmt->execute()) {
         echo "<p>Progetto inserito correttamente!</p>";

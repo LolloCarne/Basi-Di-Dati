@@ -361,8 +361,34 @@ DELIMITER ;
 
 
 
-
-
+DELIMITER $$
+CREATE PROCEDURE `ricercaProgetti`(
+    IN p_nome VARCHAR(100),
+    IN p_descrizione TEXT,
+    IN p_budget DECIMAL(10,2),
+    IN p_data_limite DATE,
+    IN p_stato ENUM('aperto','chiuso'),
+    IN p_tipo_progetto ENUM('hardware','software')
+)
+BEGIN
+    SELECT
+        nome,
+        creatore_email,
+        descrizione,
+        DATE_FORMAT(data_inserimento, '%Y-%m-%d') AS data_inserimento,
+        budget,
+        DATE_FORMAT(data_limite, '%Y-%m-%d') AS data_limite,
+        stato,
+        tipo_progetto
+    FROM Progetto
+    WHERE (p_nome IS NULL OR p_nome = '' OR nome LIKE CONCAT('%', p_nome, '%'))
+      AND (p_descrizione IS NULL OR p_descrizione = '' OR descrizione LIKE CONCAT('%', p_descrizione, '%'))
+      AND (p_budget IS NULL OR budget = p_budget)
+      AND (p_data_limite IS NULL OR data_limite = p_data_limite)
+      AND (p_stato IS NULL OR p_stato = '' OR stato = p_stato)
+      AND (p_tipo_progetto IS NULL OR p_tipo_progetto = '' OR tipo_progetto = p_tipo_progetto);
+END$$
+DELIMITER ;
 
 
 
