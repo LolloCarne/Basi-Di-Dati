@@ -57,7 +57,7 @@ DELIMITER ;
 
 DELIMITER $$
 
-CREATE TRIGGER chiudi_progetto_se_necessario
+CREATE TRIGGER chiudi_progetto
 AFTER INSERT ON Finanziamento
 FOR EACH ROW
 BEGIN
