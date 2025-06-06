@@ -22,7 +22,7 @@ BEGIN
     DECLARE v_stato ENUM('aperto', 'chiuso');
     DECLARE v_reward_count INT;
 
-    // Verifica che il progetto esista e sia aperto
+    -- Verifica che il progetto esista e sia aperto
     SELECT stato INTO v_stato
     FROM Progetto
     WHERE nome = p_nome_progetto;
@@ -33,22 +33,24 @@ BEGIN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Il progetto non è aperto a finanziamenti.';
     END IF;
 
-     //  2. Verifica che la reward sia associata al progetto
+    -- Verifica che la reward sia associata al progetto (oppure si può associare ora)
     SELECT COUNT(*) INTO v_reward_count
     FROM RewardProgetto
     WHERE id_progetto = p_nome_progetto AND codice_reward = p_codice_reward;
 
+    -- Se non esiste, la aggiunge
     IF v_reward_count = 0 THEN
-        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Reward non associata al progetto.';
+        INSERT INTO RewardProgetto(id_progetto, codice_reward)
+        VALUES (p_nome_progetto, p_codice_reward);
     END IF;
 
-     // 3. Salva il finanziamento
+    -- Salva il finanziamento
     SET v_data = CURDATE();
 
     INSERT INTO Finanziamento(email_utente, nome_progetto, data, importo)
     VALUES (p_email_utente, p_nome_progetto, v_data, p_importo);
 
-    //  4. Collega il finanziamento alla reward
+    -- Collega il finanziamento alla reward
     INSERT INTO RewardFinanziamento(email_utente, nome_progetto, data, codice_reward)
     VALUES (p_email_utente, p_nome_progetto, v_data, p_codice_reward);
 END$$
