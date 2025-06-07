@@ -1,13 +1,4 @@
 
-CREATE TABLE RewardFinanziamento (
-    email_utente VARCHAR(255),
-    nome_progetto VARCHAR(255),
-    data DATE,
-    codice_reward VARCHAR(50),
-    PRIMARY KEY (email_utente, nome_progetto, data),
-    FOREIGN KEY (email_utente, nome_progetto, data) REFERENCES Finanziamento(email_utente, nome_progetto, data),
-    FOREIGN KEY (codice_reward) REFERENCES Reward(codice)
-);
 
 DELIMITER $$
 

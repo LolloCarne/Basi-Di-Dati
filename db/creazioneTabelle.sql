@@ -1,3 +1,4 @@
+/*http://localhost/public/register.php*/
 create TABLE Utente (
 
 email VARCHAR(255) PRIMARY KEY,
@@ -80,6 +81,16 @@ CREATE TABLE RewardProgetto (
     codice_reward VARCHAR(50),
     PRIMARY KEY (id_progetto, codice_reward),
     FOREIGN KEY (id_progetto) REFERENCES Progetto(nome),
+    FOREIGN KEY (codice_reward) REFERENCES Reward(codice)
+);
+
+CREATE TABLE RewardFinanziamento (
+    email_utente VARCHAR(255),
+    nome_progetto VARCHAR(255),
+    data DATE,
+    codice_reward VARCHAR(50),
+    PRIMARY KEY (email_utente, nome_progetto, data),
+    FOREIGN KEY (email_utente, nome_progetto, data) REFERENCES Finanziamento(email_utente, nome_progetto, data),
     FOREIGN KEY (codice_reward) REFERENCES Reward(codice)
 );
 
