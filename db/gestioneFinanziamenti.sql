@@ -1,4 +1,4 @@
-/* 
+
 CREATE TABLE RewardFinanziamento (
     email_utente VARCHAR(255),
     nome_progetto VARCHAR(255),
@@ -38,12 +38,7 @@ BEGIN
     FROM RewardProgetto
     WHERE id_progetto = p_nome_progetto AND codice_reward = p_codice_reward;
 
-    -- Se non esiste, la aggiunge
-    IF v_reward_count = 0 THEN
-        INSERT INTO RewardProgetto(id_progetto, codice_reward)
-        VALUES (p_nome_progetto, p_codice_reward);
-    END IF;
-
+    
     -- Salva il finanziamento
     SET v_data = CURDATE();
 
@@ -53,6 +48,7 @@ BEGIN
     -- Collega il finanziamento alla reward
     INSERT INTO RewardFinanziamento(email_utente, nome_progetto, data, codice_reward)
     VALUES (p_email_utente, p_nome_progetto, v_data, p_codice_reward);
+
 END$$
 
 DELIMITER ;
@@ -94,4 +90,3 @@ END$$
 DELIMITER ;
 
 
-*/
