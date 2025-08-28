@@ -110,7 +110,7 @@ $conn->close();
     <ul>
     <?php foreach ($results as $row): ?>
         <li>
-            <strong><?= htmlspecialchars($row['nome']) ?></strong><br>
+            <strong><a href="detail.php?nome=<?= urlencode($row['nome']) ?>"><?= htmlspecialchars($row['nome']) ?></a></strong><br>
             Creatore: <?= htmlspecialchars($row['creatore_email']) ?><br>
             Descrizione: <?= nl2br(htmlspecialchars($row['descrizione'])) ?><br>
             Budget: €<?= number_format($row['budget'], 2, ',', '.') ?><br>

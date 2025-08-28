@@ -5,6 +5,10 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+// Carica la configurazione database (costanti DB_HOST_MYSQLI, ecc.)
+// In questo modo ogni pagina che include functions.php ha già le costanti disponibili.
+require_once __DIR__ . '/../config/database.php';
+
 /**
  * Verifica se l'utente è attualmente loggato.
  * @return bool True se l'utente è loggato, False altrimenti.

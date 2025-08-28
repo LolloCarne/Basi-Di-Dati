@@ -116,6 +116,7 @@ CREATE TABLE Commento (
     contenuto TEXT NOT NULL,
     id_utente VARCHAR(255),
     nome_progetto VARCHAR(255),
+    data DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (id_utente) REFERENCES Utente(email),
     FOREIGN KEY (nome_progetto) REFERENCES Progetto(nome)
 );
@@ -134,6 +135,7 @@ CREATE TABLE Candidatura (
     email_utente VARCHAR(255),
     nome_profilo VARCHAR(255),
     nome_progetto VARCHAR(255),
+    stato ENUM('accettata','rifiutata') NULL,
     FOREIGN KEY (email_utente) REFERENCES Utente(email),
     FOREIGN KEY (nome_profilo) REFERENCES ProfiloCompetenze(nome),
     FOREIGN KEY (nome_progetto) REFERENCES Progetto(nome)
