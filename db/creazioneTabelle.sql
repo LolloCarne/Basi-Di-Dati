@@ -31,7 +31,7 @@ livello INT CHECK (livello BETWEEN 0 AND 5),
 PRIMARY KEY (utente_email, competenza), 
 FOREIGN KEY (utente_email) 
 REFERENCES Utente(email), 
-FOREIGN KEY (competenza) REFERENCES Skill(id) -- cambiata la referenza sulla tabellaid
+FOREIGN KEY (competenza) REFERENCES Skill(id) 
 );
 
 
