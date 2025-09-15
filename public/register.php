@@ -1,32 +1,31 @@
 <?php
-// public/register.php (Versione mysqli - Corretta)
+
 session_start();
 
-// ... (codice precedente per controllo sessione, errori, ecc.) ...
+
 
 require_once '../config/database.php'; 
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    // --- 1. Recupero Dati Raw (Senza FILTER_SANITIZE_STRING) ---
+    //  Recupero Dati Raw 
     // Recupera direttamente da $_POST. La validazione e i prepared statements
     // si occuperanno della sicurezza per il DB. L'output escaping (htmlspecialchars)
     // si occuperà della sicurezza XSS quando mostri i dati.
 
-    $email = filter_input(INPUT_POST, 'email', FILTER_SANITIZE_EMAIL); // FILTER_SANITIZE_EMAIL è ancora valido e utile
-    $nickname = trim($_POST['nickname'] ?? ''); // Usa trim() per rimuovere spazi bianchi inizio/fine
+    $email = filter_input(INPUT_POST, 'email', FILTER_SANITIZE_EMAIL); 
+    $nickname = trim($_POST['nickname'] ?? ''); 
     $password_raw = $_POST['password'] ?? '';
     $password_confirm = $_POST['password_confirm'] ?? '';
     $nome = trim($_POST['nome'] ?? '');
     $cognome = trim($_POST['cognome'] ?? '');
-    $anno_nascita = filter_input(INPUT_POST, 'anno_nascita', FILTER_SANITIZE_NUMBER_INT); // OK per numeri
+    $anno_nascita = filter_input(INPUT_POST, 'anno_nascita', FILTER_SANITIZE_NUMBER_INT); 
     $luogo_nascita = trim($_POST['luogo_nascita'] ?? '');
 
-    // --- 2. Validazione ---
+    // Validazione
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $errors['email'] = "L'indirizzo email non è valido.";
     } else {
-         // --- 3. Verifica Email e Nickname Univoci (mysqli) ---
-         // ... (Codice per prepared statement di verifica - rimane invariato) ...
+         // Verifica Email e Nickname Univoci (mysqli) ---
         $sql_check = "SELECT email FROM Utente WHERE email = ? OR nickname = ?";
         $stmt_check = $mysqli->prepare($sql_check);
         if ($stmt_check === false) {
@@ -48,24 +47,23 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
     }
 
-    // Validazione aggiuntiva (es. campi obbligatori, lunghezza)
+
     if (empty($nickname)) $errors['nickname'] = "Il nickname è obbligatorio.";
-    // Potresti aggiungere un controllo sulla lunghezza massima per il nickname
-    // if (mb_strlen($nickname) > 50) $errors['nickname'] = "Il nickname è troppo lungo (max 50 caratteri).";
+
+
 
     if (strlen($password_raw) < 8) $errors['password'] = "La password deve essere di almeno 8 caratteri.";
     if ($password_raw !== $password_confirm) $errors['password_confirm'] = "Le password non coincidono.";
 
     if (empty($nome)) $errors['nome'] = "Il nome è obbligatorio.";
-    // if (mb_strlen($nome) > 50) $errors['nome'] = "Il nome è troppo lungo (max 50 caratteri).";
+
 
     if (empty($cognome)) $errors['cognome'] = "Il cognome è obbligatorio.";
-    // if (mb_strlen($cognome) > 50) $errors['cognome'] = "Il cognome è troppo lungo (max 50 caratteri).";
-
-    // ... (altre validazioni se necessario) ...
 
 
-    // --- 4. Se non ci sono errori, procedi con l'inserimento (mysqli) ---
+
+
+    // Inserimento 
     if (empty($errors)) {
         $password_hash = password_hash($password_raw, PASSWORD_DEFAULT);
 
@@ -74,12 +72,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $stmt_insert = $mysqli->prepare($sql_insert);
 
         if ($stmt_insert === false) {
-             // ... (gestione errore prepare) ...
+             
         } else {
             $anno_nascita_int = $anno_nascita ? (int)$anno_nascita : null;
 
-            // Passa le variabili raw (o validate) al bind_param. --- best practice contro sql injection
-            // La libreria mysqli si occupa dell'escaping corretto per il DB.
+     
             $stmt_insert->bind_param("sssssis",
                 $email,
                 $nickname,
@@ -90,10 +87,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $luogo_nascita 
             );
 
-             // ... (execute, controllo successo, chiusura statement) ...
+
              if ($stmt_insert->execute()) {
                 $successMessage = "Registrazione completata con successo! Ora puoi effettuare il login.";
-                 $_POST = array(); // Svuota POST per il form
+                 $_POST = array(); 
             } else {
                 error_log("Errore esecuzione insert: " . $stmt_insert->error);
                 $errors['db'] = "Errore durante il salvataggio dei dati.";

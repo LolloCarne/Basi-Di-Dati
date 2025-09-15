@@ -1,16 +1,16 @@
 <?php
-// skill.php
+
 require_once '../includes/functions.php';
 log_to_mongo('INFO','Accesso gestione skill',[ 'route'=>'/skill.php','method'=>$_SERVER['REQUEST_METHOD']??'GET','ip'=>$_SERVER['REMOTE_ADDR']??null ], $_SESSION['user_email']??null, $_SESSION['user_nickname']??null);
 require_login();
 
-// Includi la connessione al database
+
 require_once '../config/database.php';
 
 $user_email = $_SESSION['user_email'];
 $error = '';
 
-// Gestione delle richieste POST
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['action'])) {
 
@@ -63,7 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Recupera l'elenco completo delle skill disponibili per la tendina
+// Recupera l'elenco completo delle skill disponibili
 $all_skills = [];
 $query_all = "SELECT id, competenza FROM Skill ORDER BY competenza";
 if ($result = $mysqli->query($query_all)) {
@@ -73,7 +73,7 @@ if ($result = $mysqli->query($query_all)) {
     $result->free();
 }
 
-// Recupera le skill associate all'utente tramite la stored procedure
+// Recupera le skill associate all'utente
 $stmt = $mysqli->prepare("CALL GetUtenteSkill(?)");
 if (!$stmt) {
     die("Errore nella preparazione della query: " . $mysqli->error);
@@ -99,7 +99,7 @@ $mysqli->next_result();
 <?php include_once __DIR__ . '/../includes/topbar.php'; ?>
     <h1>Gestisci le tue Skill</h1>
 
-    <!-- Form per aggiungere o aggiornare una Skill -->
+    
     <h2>Aggiungi / Aggiorna Skill</h2>
     <form method="post" action="skill.php">
         <input type="hidden" name="action" value="aggiungi">
@@ -121,7 +121,7 @@ $mysqli->next_result();
         <button type="submit">Aggiungi / Aggiorna Skill</button>
     </form>
 
-    <!-- Visualizza le skill associate all'utente -->
+    
     <h2>Le tue Skill</h2>
     <table border="1">
         <tr>
@@ -134,13 +134,13 @@ $mysqli->next_result();
                 <td><?php echo htmlspecialchars($us['skill_name']); ?></td>
                 <td><?php echo htmlspecialchars($us['livello']); ?></td>
                 <td>
-                    <!-- Form per eliminare la skill -->
+                    
                     <form method="post" action="skill.php" style="display:inline;" onsubmit="return confirm('Sei sicuro di voler eliminare questa skill?');">
                         <input type="hidden" name="action" value="elimina">
                         <input type="hidden" name="skill_id" value="<?php echo htmlspecialchars($us['skill_id']); ?>">
                         <button type="submit">Elimina</button>
                     </form>
-                    <!-- Form per modificare il livello della skill -->
+                    
                     <form method="post" action="skill.php" style="display:inline;">
                         <input type="hidden" name="action" value="modifica">
                         <input type="hidden" name="skill_id" value="<?php echo htmlspecialchars($us['skill_id']); ?>">

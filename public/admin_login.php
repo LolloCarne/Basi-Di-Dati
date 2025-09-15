@@ -1,21 +1,21 @@
 <?php
-// public/admin_login.php (Versione mysqli)
+
 session_start();
 require_once __DIR__ . '/../includes/functions.php';
 
 if (isset($_SESSION['user_email']) && isset($_SESSION['is_admin_verified']) && $_SESSION['is_admin_verified'] === true) {
-    // Già loggato E verificato come admin
+    
     header('Location: index.php');
     exit;
 }
 
 $error = '';
-require_once '../config/database.php'; // $mysqli
+require_once '../config/database.php'; 
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $email = filter_input(INPUT_POST, 'email', FILTER_SANITIZE_EMAIL);
     $password_raw = $_POST['password'] ?? '';
-    $security_code_raw = $_POST['security_code'] ?? ''; // Codice sicurezza in chiaro
+    $security_code_raw = $_POST['security_code'] ?? ''; 
 
     if (empty($email) || empty($password_raw) || empty($security_code_raw)) {
         $error = 'Email, password e codice di sicurezza sono obbligatori.';
@@ -25,10 +25,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             'method' => $_SERVER['REQUEST_METHOD'] ?? 'POST'
         ], null, null);
     } else {
-        // Cerca l'utente per email. Deve avere un codice sicurezza non nullo.
+        // Cerca l'utente per email
         $sql = "SELECT email, nickname, password, nome, cognome, codice_sicurezza
                 FROM Utente
-                WHERE email = ? AND codice_sicurezza IS NOT NULL"; // Assicurati che sia un potenziale admin
+                WHERE email = ? AND codice_sicurezza IS NOT NULL";
         $stmt = $mysqli->prepare($sql);
 
         if ($stmt === false) {
@@ -42,13 +42,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             if ($result->num_rows === 1) {
                 $admin = $result->fetch_assoc();
 
-                // Verifica SIA la password principale SIA il codice di sicurezza (entrambi hash)
+                
                 if (password_verify($password_raw, $admin['password']) &&
                     password_verify($security_code_raw, $admin['codice_sicurezza']))
                 {
-                    // Login Amministratore Riuscito e VERIFICATO!
+                    
 
-                        // Log admin login riuscito
+                        
                         log_to_mongo('INFO', 'Admin loggato con successo', [
                             'ip' => $_SERVER['REMOTE_ADDR'] ?? null,
                             'route' => '/admin_login.php',
@@ -60,10 +60,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     $_SESSION['user_nickname'] = $admin['nickname'];
                     $_SESSION['user_nome'] = $admin['nome'];
                     $_SESSION['user_cognome'] = $admin['cognome'];
-                    $_SESSION['user_ruolo'] = 'admin'; // È sicuramente admin
-                    $_SESSION['is_admin_verified'] = true; // Flag specifico per admin verificato
+                    $_SESSION['user_ruolo'] = 'admin'; 
+                    $_SESSION['is_admin_verified'] = true; 
 
-                    // Controlla se è anche creatore (opzionale, per info)
+                    // Controlla se è anche creatore
                     $sql_creator = "SELECT utente_email FROM Creatore WHERE utente_email = ?";
                     $stmt_creator = $mysqli->prepare($sql_creator);
                     if($stmt_creator){
@@ -102,7 +102,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
     }
 }
-// $mysqli->close(); // Gestire globalmente
+
 ?>
 <!DOCTYPE html>
 <html lang="it">

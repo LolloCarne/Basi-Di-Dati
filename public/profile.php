@@ -1,9 +1,9 @@
-<!-- profilo.php -->
-<?php
-require_once '../includes/functions.php'; // Include le funzioni (che avvia anche la sessione)
-require_login(); // Se non loggato, viene reindirizzato a login.php
 
-$nickname = htmlspecialchars($_SESSION['user_nickname']); // Usa htmlspecialchars per sicurezza!
+<?php
+require_once '../includes/functions.php'; 
+require_login(); 
+
+$nickname = htmlspecialchars($_SESSION['user_nickname']); 
 ?>
 <!DOCTYPE html>
 <html>
@@ -19,7 +19,7 @@ $nickname = htmlspecialchars($_SESSION['user_nickname']); // Usa htmlspecialchar
     <p>Cognome: <?php echo $_SESSION['user_cognome']; ?></p>
     <p><a href="logout.php">Logout</a></p>
 
-    <!-- Link alla pagina per gestire le Skill -->
+    
     <p><a href="skill.php">Gestisci le tue Skill</a></p>
     
 </body>
