@@ -1,5 +1,5 @@
 <?php
-// config/database.php
+
 
 define('DB_HOST_MYSQLI', 'localhost');       
 define('DB_USER_MYSQLI', 'root');
@@ -13,12 +13,12 @@ $mysqli = new mysqli(DB_HOST_MYSQLI, DB_USER_MYSQLI, DB_PASS_MYSQLI, DB_NAME_MYS
 
 // Controlla errori di connessione
 if ($mysqli->connect_error) {
-    // In produzione, logga l'errore e mostra messaggio generico
+    
     error_log("Errore Connessione DB (mysqli): " . $mysqli->connect_error);
     die("Errore di connessione al database. Si prega di riprovare più tardi.");
 }
 
-// Imposta il set di caratteri (importante per dati multilingua/speciali)
+// Imposta il set di caratteri
 if (!$mysqli->set_charset(DB_CHARSET_MYSQLI)) {
     error_log("Errore nel caricamento del set di caratteri utf8mb4 (mysqli): " . $mysqli->error);
 }
