@@ -19,6 +19,33 @@ if (file_exists(__DIR__ . '/../config/mongodb.php')) {
 }
 
 /**
+ * Restituisce una nuova connessione mysqli utilizzando le costanti di configurazione.
+ * Non utilizza la variabile globale $mysqli, ma crea una connessione dedicata.
+ */
+function db_conn(): mysqli {
+    $m = new mysqli(DB_HOST_MYSQLI, DB_USER_MYSQLI, DB_PASS_MYSQLI, DB_NAME_MYSQLI, DB_PORT_MYSQLI);
+    if ($m->connect_error) {
+        die('Connessione fallita: ' . htmlspecialchars($m->connect_error));
+    }
+    if (!$m->set_charset(DB_CHARSET_MYSQLI)) {
+        // opzionale: logging del problema di charset
+        error_log('Impossibile impostare charset: ' . $m->error);
+    }
+    return $m;
+}
+
+/**
+ * Consuma eventuali result set pendenti dopo l'esecuzione di stored procedure.
+ */
+function drain(mysqli $m): void {
+    while ($m->more_results() && $m->next_result()) {
+        if ($r = $m->use_result()) {
+            $r->free();
+        }
+    }
+}
+
+/**
  * Verifica se l'utente è attualmente loggato.
  * @return bool True se l'utente è loggato, False altrimenti.
  */

@@ -2,50 +2,42 @@
 require_once '../../includes/functions.php';
 require_login();
 
-/*
- * Pagina Dettaglio Progetto
- * Requisiti (dalla traccia):
- * - Visualizzazione completa progetto (descrizione, budget, data limite, stato, tipo)
- * - Gestione reward (creatori)
- * - Gestione componenti (solo progetti hardware, creatore)
- * - Gestione profili (solo progetti software, creatore)
- * - Finanziamento (tutti gli utenti su progetto aperto) con scelta reward (1 reward per finanziamento)
- * - Blocco azioni di modifica se progetto chiuso
- */
-
+// Parametri di ingresso
 $nome_progetto = $_GET['nome'] ?? '';
 if ($nome_progetto === '') { http_response_code(400); die('Parametro progetto mancante.'); }
 
-function db_conn(): mysqli {
-  $m = new mysqli(DB_HOST_MYSQLI, DB_USER_MYSQLI, DB_PASS_MYSQLI, DB_NAME_MYSQLI, DB_PORT_MYSQLI);
-  if ($m->connect_error) { die('Connessione fallita: '.htmlspecialchars($m->connect_error)); }
-  if(!$m->set_charset(DB_CHARSET_MYSQLI)) { /* opzionale logging */ }
-  return $m;
-}
-
-function drain(mysqli $m): void { while ($m->more_results() && $m->next_result()) { if($r=$m->use_result()){ $r->free(); } } }
-
+// Connessione DB
 $mysqli = db_conn();
 
-// Carica progetto + progressi finanziamento
+// Carica progetto
 $stmt = $mysqli->prepare('SELECT nome, creatore_email, descrizione, DATE_FORMAT(data_inserimento, "%Y-%m-%d") AS data_inserimento, budget, DATE_FORMAT(data_limite, "%Y-%m-%d") AS data_limite, stato, tipo_progetto FROM Progetto WHERE nome=?');
-$stmt->bind_param('s',$nome_progetto); $stmt->execute(); $rs=$stmt->get_result(); $progetto=$rs->fetch_assoc(); $stmt->close();
+$stmt->bind_param('s', $nome_progetto);
+$stmt->execute();
+$rs = $stmt->get_result();
+$progetto = $rs->fetch_assoc();
+$stmt->close();
 if(!$progetto){ die('Progetto non trovato.'); }
 
 // Totale finanziato finora
-$stmt=$mysqli->prepare('SELECT COALESCE(SUM(importo),0) FROM Finanziamento WHERE nome_progetto=?');
-$stmt->bind_param('s',$nome_progetto); $stmt->execute(); $stmt->bind_result($tot_fin); $stmt->fetch(); $stmt->close();
+$stmt = $mysqli->prepare('SELECT COALESCE(SUM(importo),0) FROM Finanziamento WHERE nome_progetto=?');
+$stmt->bind_param('s', $nome_progetto);
+$stmt->execute();
+$stmt->bind_result($tot_fin);
+$stmt->fetch();
+$stmt->close();
 
+// Permessi e stato progetto
 $is_creator = isset($_SESSION['user_email']) && $_SESSION['user_email'] === $progetto['creatore_email'];
 $can_manage = $is_creator && check_permission(['creator','admin'], true);
 $project_open = $progetto['stato'] === 'aperto';
 
-$errors = [];$success=[];
+$errors = [];
+$success = [];
 
-// Inizializza (verrà popolato DOPO eventuali inserimenti/modifiche)
-$reward_list=[];
+// Inizializza strutture
+$reward_list = [];
 
-// Elenco completo competenze disponibili (per menu a tendina)
+// Elenco competenze
 $all_skills = [];
 $stmt = $mysqli->prepare('SELECT competenza FROM Skill ORDER BY competenza');
 if ($stmt) {
@@ -55,31 +47,35 @@ if ($stmt) {
   $stmt->close();
 }
 
-// Gestione AZIONI POST (create/update) usando stored procedure ove disponibili
-if($_SERVER['REQUEST_METHOD']==='POST') {
+// Gestione POST (azioni)
+if($_SERVER['REQUEST_METHOD'] === 'POST') {
   $action = $_POST['action'] ?? '';
   $user_email = $_SESSION['user_email'] ?? '';
 
-  // Azioni di modifica richiedono: creatore + progetto aperto (logico per evitare cambi dopo chiusura)
-  $needs_manage = in_array($action,[ 'add_reward','edit_reward','add_component','edit_component','add_profile','edit_profile','manage_candidature','reply_comment' ], true);
+  $needs_manage = in_array($action, [
+    'add_reward','edit_reward','add_component','edit_component','add_profile','edit_profile','manage_candidature','reply_comment'
+  ], true);
+
   if($needs_manage && (!$can_manage || !$project_open)) {
     $errors[] = 'Permessi insufficienti o progetto chiuso.';
   } else {
     switch($action){
-      case 'add_reward':
+      case 'add_reward': {
         $descr = trim($_POST['descrizione'] ?? '');
         if ($descr === '') { $errors[] = 'Descrizione reward obbligatoria.'; break; }
-        // Generazione codice univoco: prefix progetto + timestamp + random
         $tentativi = 0; $codice = '';
         do {
-          $codice = strtoupper(substr(preg_replace('/[^A-Za-z0-9]/','',$nome_progetto),0,4)).'-'.date('YmdHis').'-'.bin2hex(random_bytes(2));
+          $codice = strtoupper(substr(preg_replace('/[^A-Za-z0-9]/','', $nome_progetto), 0, 4)).'-'.date('YmdHis').'-'.bin2hex(random_bytes(2));
           $chk = $mysqli->prepare('SELECT 1 FROM Reward WHERE codice=? LIMIT 1');
-          $chk->bind_param('s',$codice); $chk->execute(); $chk->store_result();
-          $exists = $chk->num_rows>0; $chk->close();
+          $chk->bind_param('s', $codice);
+          $chk->execute();
+          $chk->store_result();
+          $exists = $chk->num_rows > 0;
+          $chk->close();
           $tentativi++;
-          if ($tentativi>5 && $exists) { $errors[] = 'Impossibile generare codice reward univoco.'; break 2; }
+          if ($tentativi > 5 && $exists) { $errors[] = 'Impossibile generare codice reward univoco.'; break 2; }
         } while($exists);
-        // Gestione upload immagine: l'utente NON puo fornire il path; viene calcolato server-side
+
         $foto_path = '';
         $upload_dir = __DIR__ . '/../../uploads/rewards/';
         if (!is_dir($upload_dir)) @mkdir($upload_dir, 0755, true);
@@ -107,10 +103,11 @@ if($_SERVER['REQUEST_METHOD']==='POST') {
         $stmt->bind_param('sssss', $codice, $descr, $foto_path, $user_email, $nome_progetto);
         if ($stmt->execute()) { $success[] = 'Reward inserita (codice: '.$codice.').'; } else { $errors[] = 'Errore reward: '.htmlspecialchars($stmt->error); }
         $stmt->close(); drain($mysqli); break;
-      case 'edit_reward':
-        $codice = trim($_POST['codice'] ?? ''); $descr = trim($_POST['descrizione'] ?? '');
+      }
+      case 'edit_reward': {
+        $codice = trim($_POST['codice'] ?? '');
+        $descr = trim($_POST['descrizione'] ?? '');
         if ($codice === '' || $descr === '') { $errors[] = 'Codice e nuova descrizione obbligatori.'; break; }
-        // Gestione upload opzionale: se arriva un file lo salvo e passo il nuovo path; altrimenti passiamo stringa vuota
         $foto_path = '';
         $upload_dir = __DIR__ . '/../../uploads/rewards/';
         if (!is_dir($upload_dir)) @mkdir($upload_dir, 0755, true);
@@ -138,9 +135,13 @@ if($_SERVER['REQUEST_METHOD']==='POST') {
         $stmt->bind_param('ssss', $codice, $descr, $foto_path, $user_email);
         if ($stmt->execute()) { $success[] = 'Reward modificata.'; } else { $errors[] = 'Errore modifica reward: '.htmlspecialchars($stmt->error); }
         $stmt->close(); drain($mysqli); break;
-      case 'add_component':
+      }
+      case 'add_component': {
         if($progetto['tipo_progetto']!=='hardware'){ $errors[]='Progetto non hardware.'; break; }
-        $nome_c=trim($_POST['nome_comp']??''); $descr_c=trim($_POST['descr_comp']??''); $prezzo=$_POST['prezzo']??''; $qta=$_POST['quantita']??'';
+        $nome_c = trim($_POST['nome_comp'] ?? '');
+        $descr_c = trim($_POST['descr_comp'] ?? '');
+        $prezzo = $_POST['prezzo'] ?? '';
+        $qta = $_POST['quantita'] ?? '';
         if($nome_c===''||$descr_c===''||$prezzo===''||$qta===''){ $errors[]='Tutti i campi componente obbligatori.'; break; }
         if(!is_numeric($prezzo) || $prezzo<=0){ $errors[]='Prezzo non valido.'; break; }
         if(!ctype_digit($qta) || (int)$qta<0){ $errors[]='Quantità non valida.'; break; }
@@ -150,9 +151,13 @@ if($_SERVER['REQUEST_METHOD']==='POST') {
         $stmt->bind_param('ssdiis',$nome_c,$descr_c,$prezzo_f,$qta_i,$user_email,$nome_progetto);
         if($stmt->execute()){ $success[]='Componente inserita.'; } else { $errors[]='Errore componente: '.htmlspecialchars($stmt->error); }
         $stmt->close(); drain($mysqli); break;
-      case 'edit_component':
+      }
+      case 'edit_component': {
         if($progetto['tipo_progetto']!=='hardware'){ $errors[]='Progetto non hardware.'; break; }
-        $nome_c=trim($_POST['nome_comp']??''); $descr_c=trim($_POST['descr_comp']??''); $prezzo=$_POST['prezzo']??''; $qta=$_POST['quantita']??'';
+        $nome_c = trim($_POST['nome_comp'] ?? '');
+        $descr_c = trim($_POST['descr_comp'] ?? '');
+        $prezzo = $_POST['prezzo'] ?? '';
+        $qta = $_POST['quantita'] ?? '';
         if($nome_c===''||$descr_c===''||$prezzo===''||$qta===''){ $errors[]='Tutti i campi modifica componente obbligatori.'; break; }
         if(!is_numeric($prezzo) || $prezzo<=0){ $errors[]='Prezzo non valido.'; break; }
         if(!ctype_digit($qta) || (int)$qta<0){ $errors[]='Quantità non valida.'; break; }
@@ -162,9 +167,12 @@ if($_SERVER['REQUEST_METHOD']==='POST') {
         $stmt->bind_param('ssdiis',$nome_c,$descr_c,$prezzo_f,$qta_i,$user_email,$nome_progetto);
         if($stmt->execute()){ $success[]='Componente modificata.'; } else { $errors[]='Errore modifica componente: '.htmlspecialchars($stmt->error); }
         $stmt->close(); drain($mysqli); break;
-      case 'add_profile':
+      }
+      case 'add_profile': {
         if($progetto['tipo_progetto']!=='software'){ $errors[]='Progetto non software.'; break; }
-        $nome_p=trim($_POST['nome_prof']??''); $comp=trim($_POST['competenza']??''); $liv=$_POST['livello']??'';
+        $nome_p = trim($_POST['nome_prof'] ?? '');
+        $comp = trim($_POST['competenza'] ?? '');
+        $liv = $_POST['livello'] ?? '';
         if($nome_p===''||$comp===''||$liv===''){ $errors[]='Tutti i campi profilo obbligatori.'; break; }
         if(!in_array($comp, $all_skills, true)) { $errors[]='Competenza non valida.'; break; }
         if(!ctype_digit($liv) || (int)$liv<0 || (int)$liv>5){ $errors[]='Livello deve essere 0..5.'; break; }
@@ -173,10 +181,13 @@ if($_SERVER['REQUEST_METHOD']==='POST') {
         if(!$stmt){ $errors[]='Prepare profilo.'; break; }
         $stmt->bind_param('ssiss',$nome_p,$comp,$lvl,$user_email,$nome_progetto);
         if($stmt->execute()){ $success[]='Profilo inserito.'; } else { $errors[]='Errore profilo: '.htmlspecialchars($stmt->error); }
-        $stmt->close(); drain($mysqli); break;            
-      case 'edit_profile':
+        $stmt->close(); drain($mysqli); break;
+      }
+      case 'edit_profile': {
         if($progetto['tipo_progetto']!=='software'){ $errors[]='Progetto non software.'; break; }
-        $nome_p=trim($_POST['nome_prof']??''); $comp=trim($_POST['competenza']??''); $liv=$_POST['livello']??'';
+        $nome_p = trim($_POST['nome_prof'] ?? '');
+        $comp = trim($_POST['competenza'] ?? '');
+        $liv = $_POST['livello'] ?? '';
         if($nome_p===''||$comp===''||$liv===''){ $errors[]='Tutti i campi modifica profilo obbligatori.'; break; }
         if(!in_array($comp, $all_skills, true)) { $errors[]='Competenza non valida.'; break; }
         if(!ctype_digit($liv) || (int)$liv<0 || (int)$liv>5){ $errors[]='Livello deve essere 0..5.'; break; }
@@ -196,19 +207,18 @@ if($_SERVER['REQUEST_METHOD']==='POST') {
           $errors[] = 'Errore inatteso durante modifica profilo: '.htmlspecialchars($e->getMessage());
         }
         $stmt->close(); drain($mysqli); break;
-      case 'fund_project':
-        // Finanziamento: progetto deve essere aperto. Non serve essere creatore.
+      }
+      case 'fund_project': {
         if(!$project_open){ $errors[]='Progetto chiuso: non finanziabile.'; break; }
-        $importo = $_POST['importo'] ?? ''; $codice_reward = trim($_POST['codice_reward'] ?? '');
+        $importo = $_POST['importo'] ?? '';
+        $codice_reward = trim($_POST['codice_reward'] ?? '');
         if(!is_numeric($importo) || $importo<=0){ $errors[]='Importo non valido.'; break; }
         if($codice_reward===''){ $errors[]='Seleziona una reward.'; break; }
-        // Controllo: utente non può finanziare il proprio progetto
         if($user_email === $progetto['creatore_email']) { $errors[] = 'Non puoi finanziare il tuo stesso progetto.'; break; }
         $stmt=$mysqli->prepare('CALL FinanziaProgetto(?,?,?,?)');
         if(!$stmt){ $errors[]='Prepare finanziamento.'; break; }
         $imp=(float)$importo; $stmt->bind_param('ssds',$user_email,$nome_progetto,$imp,$codice_reward);
         if($stmt->execute()){ $success[]='Finanziamento registrato.'; } else {
-          // Gestione duplicato/unique key: mostra messaggio amichevole
           $err_msg = $stmt->error; $errno = $stmt->errno;
           if($errno === 1062 || stripos($err_msg,'duplicate')!==false) {
             $errors[] = 'Hai già effettuato un finanziamento per questo progetto in questa data.';
@@ -217,15 +227,15 @@ if($_SERVER['REQUEST_METHOD']==='POST') {
           }
         }
         $stmt->close(); drain($mysqli);
-        // Aggiorna totale finanziato (trigger potrebbe aver chiuso il progetto se raggiunto budget)
+        // Aggiorna totale e stato
         $stmt=$mysqli->prepare('SELECT COALESCE(SUM(importo),0) FROM Finanziamento WHERE nome_progetto=?');
         $stmt->bind_param('s',$nome_progetto); $stmt->execute(); $stmt->bind_result($tot_fin); $stmt->fetch(); $stmt->close();
-        // Aggiorna stato progetto attuale
         $stmt=$mysqli->prepare('SELECT stato FROM Progetto WHERE nome=?');
         $stmt->bind_param('s',$nome_progetto); $stmt->execute(); $stmt->bind_result($st); $stmt->fetch(); $stmt->close();
         $progetto['stato']=$st; $project_open=($st==='aperto');
         break;
-      case 'apply_profile':
+      }
+      case 'apply_profile': {
         if($progetto['tipo_progetto']!=='software'){ $errors[]='Progetto non software.'; break; }
         if(!$project_open){ $errors[]='Progetto chiuso.'; break; }
         if($user_email === $progetto['creatore_email']) { $errors[] = 'Non puoi candidarti al tuo progetto.'; break; }
@@ -247,7 +257,8 @@ if($_SERVER['REQUEST_METHOD']==='POST') {
           $errors[] = 'Errore inatteso durante candidatura: '.htmlspecialchars($e->getMessage());
         }
         $stmt->close(); drain($mysqli); break;
-      case 'manage_candidature':
+      }
+      case 'manage_candidature': {
         if(!$can_manage){ $errors[]='Permessi insufficienti.'; break; }
         if(!$project_open){ $errors[]='Progetto chiuso.'; break; }
         $cand_id = $_POST['cand_id'] ?? '';
@@ -262,7 +273,8 @@ if($_SERVER['REQUEST_METHOD']==='POST') {
             $errors[] = 'Errore gestione candidatura: '.htmlspecialchars($err);
         }
         $stmt->close(); drain($mysqli); break;
-      case 'add_comment':
+      }
+      case 'add_comment': {
         if(!$project_open){ $errors[]='Progetto chiuso.'; break; }
         $contenuto = trim($_POST['contenuto'] ?? '');
         if($contenuto===''){ $errors[]='Contenuto commento vuoto.'; break; }
@@ -271,7 +283,8 @@ if($_SERVER['REQUEST_METHOD']==='POST') {
         $stmt->bind_param('sss',$user_email,$nome_progetto,$contenuto);
         if($stmt->execute()){ $success[]='Commento inserito.'; } else { $errors[]='Errore commento: '.htmlspecialchars($stmt->error); }
         $stmt->close(); drain($mysqli); break;
-      case 'reply_comment':
+      }
+      case 'reply_comment': {
         if(!$can_manage){ $errors[]='Permessi insufficienti.'; break; }
         if(!$project_open){ $errors[]='Progetto chiuso.'; break; }
         $comment_id = $_POST['comment_id'] ?? '';
@@ -283,31 +296,40 @@ if($_SERVER['REQUEST_METHOD']==='POST') {
         $stmt->bind_param('sis',$user_email,$cid,$testo);
         if($stmt->execute()){ $success[]='Risposta inserita.'; } else { $errors[]='Errore risposta: '.htmlspecialchars($stmt->error); }
         $stmt->close(); drain($mysqli); break;
+      }
       default:
         $errors[]='Azione non riconosciuta.';
     }
   }
 }
 
-// Ricarica liste post azioni
-// Reward list (usata sia per elenco che per select finanziamento)
-$rewards=[]; $stmt=$mysqli->prepare('SELECT r.codice, r.descrizione, r.foto FROM Reward r INNER JOIN RewardProgetto rp ON r.codice=rp.codice_reward WHERE rp.id_progetto=? ORDER BY r.codice');
+
+$rewards = [];
+$stmt=$mysqli->prepare('SELECT r.codice, r.descrizione, r.foto FROM Reward r INNER JOIN RewardProgetto rp ON r.codice=rp.codice_reward WHERE rp.id_progetto=? ORDER BY r.codice');
 $stmt->bind_param('s',$nome_progetto); $stmt->execute(); $rt=$stmt->get_result(); while($row=$rt->fetch_assoc()) $rewards[]=$row; $stmt->close();
 $reward_list = array_map(function($r){ return ['codice'=>$r['codice'], 'descrizione'=>$r['descrizione']]; }, $rewards);
 
-$componenti=[]; if($progetto['tipo_progetto']==='hardware') { $stmt=$mysqli->prepare('SELECT c.nome, c.descrizione, c.prezzo, c.quantità FROM Componenti c INNER JOIN ComponentiProgetto cp ON c.nome=cp.nome_componenti WHERE cp.nome_progetto=? ORDER BY c.nome'); $stmt->bind_param('s',$nome_progetto); $stmt->execute(); $ct=$stmt->get_result(); while($row=$ct->fetch_assoc()) $componenti[]=$row; $stmt->close(); }
+$componenti = [];
+if($progetto['tipo_progetto']==='hardware') {
+  $stmt=$mysqli->prepare('SELECT c.nome, c.descrizione, c.prezzo, c.quantità FROM Componenti c INNER JOIN ComponentiProgetto cp ON c.nome=cp.nome_componenti WHERE cp.nome_progetto=? ORDER BY c.nome');
+  $stmt->bind_param('s',$nome_progetto); $stmt->execute(); $ct=$stmt->get_result(); while($row=$ct->fetch_assoc()) $componenti[]=$row; $stmt->close();
+}
 
-$profili=[]; if($progetto['tipo_progetto']==='software') { $stmt=$mysqli->prepare('SELECT pc.nome, pc.competenza, pc.livello FROM ProfiloCompetenze pc INNER JOIN Candidatura ca ON pc.nome=ca.nome_profilo WHERE ca.nome_progetto=? ORDER BY pc.nome'); $stmt->bind_param('s',$nome_progetto); $stmt->execute(); $pt=$stmt->get_result(); while($row=$pt->fetch_assoc()) $profili[]=$row; $stmt->close(); }
+$profili = [];
+if($progetto['tipo_progetto']==='software') {
+  $stmt=$mysqli->prepare('SELECT pc.nome, pc.competenza, pc.livello FROM ProfiloCompetenze pc INNER JOIN Candidatura ca ON pc.nome=ca.nome_profilo WHERE ca.nome_progetto=? ORDER BY pc.nome');
+  $stmt->bind_param('s',$nome_progetto); $stmt->execute(); $pt=$stmt->get_result(); while($row=$pt->fetch_assoc()) $profili[]=$row; $stmt->close();
+}
 
 $progress = $progetto['budget']>0 ? min(100, round(($tot_fin / $progetto['budget'])*100,2)) : 0;
 
-// Carica commenti + eventuali risposte
-$commenti=[];
+// Commenti + risposte
+$commenti = [];
 $stmt=$mysqli->prepare('SELECT c.id, c.contenuto, DATE_FORMAT(IFNULL(c.data, NOW()), "%Y-%m-%d") AS data, c.id_utente, u.nickname, r.testo AS risposta, r.email_creatore FROM Commento c JOIN Utente u ON u.email=c.id_utente LEFT JOIN Risposta r ON r.id_commento=c.id WHERE c.nome_progetto=? ORDER BY c.id DESC');
 $stmt->bind_param('s',$nome_progetto); $stmt->execute(); $cr=$stmt->get_result(); while($row=$cr->fetch_assoc()) $commenti[]=$row; $stmt->close();
 
-// Carica candidature (solo se software)
-$candidature=[];
+// Candidature
+$candidature = [];
 if($progetto['tipo_progetto']==='software') {
   $stmt=$mysqli->prepare('SELECT ca.id, ca.email_utente, u.nickname, ca.nome_profilo, ca.stato FROM Candidatura ca JOIN Utente u ON u.email=ca.email_utente WHERE ca.nome_progetto=? ORDER BY ca.id DESC');
   $stmt->bind_param('s',$nome_progetto); $stmt->execute(); $cand_r=$stmt->get_result(); while($row=$cand_r->fetch_assoc()) $candidature[]=$row; $stmt->close();
