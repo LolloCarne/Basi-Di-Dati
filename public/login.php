@@ -1,6 +1,15 @@
 <?php
 // public/login.php (Versione mysqli)
-session_start();
+// DEBUG temporaneo: mostra errori per diagnosticare pagina bianca
+ini_set('display_errors', '1');
+ini_set('display_startup_errors', '1');
+error_reporting(E_ALL);
+
+// Autoload Composer (necessario per MongoDB Client e altre dipendenze)
+require_once __DIR__ . '/../vendor/autoload.php';
+
+// La sessione verrà avviata da functions.php se non già avviata
+require_once __DIR__ . '/../includes/functions.php';
 
 // Se l'utente è già loggato, reindirizzalo
 if (isset($_SESSION['user_email'])) {
@@ -19,6 +28,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     if (empty($email) || empty($password_raw)) {
         $error = 'Email e password sono obbligatori.';
+        // Log mancata submit
+        log_to_mongo('WARN', 'Campi login mancanti', [
+            'ip' => $_SERVER['REMOTE_ADDR'] ?? null,
+            'route' => '/login.php',
+            'method' => $_SERVER['REQUEST_METHOD'] ?? 'POST'
+        ], null, null);
     } else {
         // Cerca l'utente per email nella tabella Utente
         // Seleziona i campi necessari, incluso l'hash della password e il codice sicurezza
@@ -81,6 +96,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
 
                     // Login riuscito!
+                    // Log login riuscito
+                    log_to_mongo('INFO', 'Utente loggato con successo', [
+                        'ip' => $_SERVER['REMOTE_ADDR'] ?? null,
+                        'route' => '/login.php',
+                        'method' => $_SERVER['REQUEST_METHOD'] ?? 'POST'
+                    ], $user['email'], $user['nickname']);
                     session_regenerate_id(true); // Sicurezza sessione
 
                     // Memorizza le informazioni nella sessione
@@ -108,10 +129,22 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 } else {
                     // Password errata
                     $error = 'Credenziali non valide.';
+                    log_to_mongo('WARN', 'Tentativo login fallito: password errata', [
+                        'ip' => $_SERVER['REMOTE_ADDR'] ?? null,
+                        'route' => '/login.php',
+                        'method' => $_SERVER['REQUEST_METHOD'] ?? 'POST',
+                        'email_attempt' => $email
+                    ], null, $email);
                 }
             } else {
                 // Utente non trovato
                 $error = 'Credenziali non valide.';
+                log_to_mongo('WARN', 'Tentativo login fallito: utente non trovato', [
+                    'ip' => $_SERVER['REMOTE_ADDR'] ?? null,
+                    'route' => '/login.php',
+                    'method' => $_SERVER['REQUEST_METHOD'] ?? 'POST',
+                    'email_attempt' => $email
+                ], null, $email);
             }
             $stmt_user->close();
         }

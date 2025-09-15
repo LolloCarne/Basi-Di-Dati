@@ -1,10 +1,8 @@
 <?php
-require_once '../config/database.php'; // $mysqli è disponibile
+require_once '../config/database.php'; 
 
-// Se il form è stato inviato
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
-    // Recupera e pulisce i dati in ingresso
     $email_utente = filter_input(INPUT_POST, 'email', FILTER_VALIDATE_EMAIL);
     $codice_sicurezza_raw = trim($_POST['codice']);
 
@@ -12,35 +10,30 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         die("Indirizzo email non valido.");
     }
 
-    // 1. Valida il formato del codice raw (opzionale ma consigliato)
+    //check del formato del codice di sicurezza (123-456-789)
     if (!preg_match('/^\d{3}-\d{3}-\d{3}$/', $codice_sicurezza_raw)) {
         die("Formato codice di sicurezza non valido. Utilizzare il formato 123-456-789.");
     }
 
-    // 2. Genera l'hash del codice di sicurezza raw
     $securityCodeHash = password_hash($codice_sicurezza_raw, PASSWORD_DEFAULT);
     if ($securityCodeHash === false) {
         die("Errore durante la generazione dell'hash del codice di sicurezza.");
     }
 
-    // 3. Prepara la chiamata alla stored procedure
     $stmt = $mysqli->prepare("CALL PromuoviUtenteAdAdmin(?, ?)");
     if ($stmt === false) {
         die("Errore preparazione chiamata procedura: " . $mysqli->error);
     }
 
-    // 4. Binda i parametri (email e hash)
+    //Binda i parametri (email e hash)
     $stmt->bind_param("ss", $email_utente, $securityCodeHash);
 
-    // 5. Esegui la chiamata
     if ($stmt->execute()) {
         echo "Procedura eseguita con successo (utente promosso ad admin).";
-        // Nota: La procedura stessa potrebbe aver generato un errore se l'utente non esiste.
     } else {
         echo "Errore durante l'esecuzione della procedura: " . $stmt->error;
     }
 
-    // 6. Chiudi lo statement
     $stmt->close();
 }
 ?>

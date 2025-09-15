@@ -1,0 +1,46 @@
+In questo script php ho predisposto dei metodi per inserire dei documents di log in una collection di un database mongoDB.
+(lo utilizzo ad esempio nella pagina di login)
+Nella cartella config, implementa la connessione al database mongoDB
+
+Ecco un esempio di utlizzo:
+<?php
+
+require __DIR__ . '/../vendor/autoload.php';
+
+
+$uri = getenv('MONGODB_URI') ?: throw new RuntimeException(
+    'Set the MONGODB_URI environment variable to your Atlas URI',
+);
+$client = new MongoDB\Client($uri);
+$collection = $client->sample_mflix->movies;
+
+$filter = ['title' => 'The Shawshank Redemption'];
+$result = $collection->findOne($filter);
+
+if ($result) {
+    echo json_encode($result, JSON_PRETTY_PRINT);
+} else {
+    echo 'Document not found';
+}
+
+
+
+questo è un altro esempio di connessione:
+<?php
+use MongoDB\Driver\ServerApi;
+$uri = 'mongodb+srv://admin_db_user:<db_password>@cluster0.vxsqfj3.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0';
+// Set the version of the Stable API on the client
+$apiVersion = new ServerApi(ServerApi::V1);
+// Create a new client and connect to the server
+$client = new MongoDB\Client($uri, [], ['serverApi' => $apiVersion]);
+try {
+    // Send a ping to confirm a successful connection
+    $client->selectDatabase('admin')->command(['ping' => 1]);
+    echo "Pinged your deployment. You successfully connected to MongoDB!\n";
+} catch (Exception $e) {
+    printf($e->getMessage());
+}
+
+
+questa è la stringa di mongoDB:
+mongodb+srv://admin_db_user:<db_password>@cluster0.vxsqfj3.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0

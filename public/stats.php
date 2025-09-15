@@ -27,6 +27,7 @@ section{margin-bottom:2rem;} table{border-collapse:collapse;} th,td{border:1px s
 </style>
 </head>
 <body>
+<?php include_once __DIR__ . '/../includes/topbar.php'; ?>
 <h1>Statistiche Piattaforma</h1>
 <section>
   <h2>Top 3 Creatori per Affidabilità</h2>

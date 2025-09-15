@@ -24,6 +24,7 @@ $mysqli->close();
 <html lang="it">
 <head><meta charset="UTF-8"><title>Gestione Competenze</title></head>
 <body>
+<?php include_once __DIR__ . '/../includes/topbar.php'; ?>
 <h1>Gestione Competenze (Admin)</h1>
 <?php if($msg) echo '<p style="color:green;">'.htmlspecialchars($msg).'</p>'; if($err) echo '<p style="color:red;">'.htmlspecialchars($err).'</p>'; ?>
 <form method="post">

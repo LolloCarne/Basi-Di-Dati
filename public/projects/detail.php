@@ -45,6 +45,16 @@ $errors = [];$success=[];
 // Inizializza (verrà popolato DOPO eventuali inserimenti/modifiche)
 $reward_list=[];
 
+// Elenco completo competenze disponibili (per menu a tendina)
+$all_skills = [];
+$stmt = $mysqli->prepare('SELECT competenza FROM Skill ORDER BY competenza');
+if ($stmt) {
+  $stmt->execute();
+  $res = $stmt->get_result();
+  while($row = $res->fetch_assoc()) { $all_skills[] = $row['competenza']; }
+  $stmt->close();
+}
+
 // Gestione AZIONI POST (create/update) usando stored procedure ove disponibili
 if($_SERVER['REQUEST_METHOD']==='POST') {
   $action = $_POST['action'] ?? '';
@@ -57,30 +67,76 @@ if($_SERVER['REQUEST_METHOD']==='POST') {
   } else {
     switch($action){
       case 'add_reward':
-        $descr=trim($_POST['descrizione']??''); $foto=trim($_POST['foto']??'');
-        if($descr===''){ $errors[]='Descrizione reward obbligatoria.'; break; }
+        $descr = trim($_POST['descrizione'] ?? '');
+        if ($descr === '') { $errors[] = 'Descrizione reward obbligatoria.'; break; }
         // Generazione codice univoco: prefix progetto + timestamp + random
-        $tentativi=0; $codice='';
+        $tentativi = 0; $codice = '';
         do {
           $codice = strtoupper(substr(preg_replace('/[^A-Za-z0-9]/','',$nome_progetto),0,4)).'-'.date('YmdHis').'-'.bin2hex(random_bytes(2));
-          $chk=$mysqli->prepare('SELECT 1 FROM Reward WHERE codice=? LIMIT 1');
+          $chk = $mysqli->prepare('SELECT 1 FROM Reward WHERE codice=? LIMIT 1');
           $chk->bind_param('s',$codice); $chk->execute(); $chk->store_result();
           $exists = $chk->num_rows>0; $chk->close();
           $tentativi++;
-          if($tentativi>5 && $exists){ $errors[]='Impossibile generare codice reward univoco.'; break 2; }
+          if ($tentativi>5 && $exists) { $errors[] = 'Impossibile generare codice reward univoco.'; break 2; }
         } while($exists);
-        $stmt=$mysqli->prepare('CALL InserisciReward(?,?,?,?,?)');
-        if(!$stmt){ $errors[]='Prepare reward: '.htmlspecialchars($mysqli->error); break; }
-        $stmt->bind_param('sssss',$codice,$descr,$foto,$user_email,$nome_progetto);
-        if($stmt->execute()){ $success[]='Reward inserita (codice: '.$codice.').'; } else { $errors[]='Errore reward: '.htmlspecialchars($stmt->error); }
+        // Gestione upload immagine: l'utente NON puo fornire il path; viene calcolato server-side
+        $foto_path = '';
+        $upload_dir = __DIR__ . '/../../uploads/rewards/';
+        if (!is_dir($upload_dir)) @mkdir($upload_dir, 0755, true);
+        if (isset($_FILES['reward_foto_add']) && $_FILES['reward_foto_add']['error'] !== UPLOAD_ERR_NO_FILE) {
+          $f = $_FILES['reward_foto_add'];
+          if ($f['error'] !== UPLOAD_ERR_OK) {
+            $errors[] = 'Errore upload immagine reward. Codice: '.intval($f['error']);
+          } else {
+            if (!is_uploaded_file($f['tmp_name'])) { $errors[] = 'File upload non valido.'; }
+            else {
+              $ext = pathinfo($f['name'], PATHINFO_EXTENSION);
+              $safe = preg_replace('/[^A-Za-z0-9._-]/','_', $codice . '_' . time() . '.' . $ext);
+              $dest = $upload_dir . $safe;
+              if (move_uploaded_file($f['tmp_name'], $dest)) {
+                $foto_path = '/uploads/rewards/' . $safe;
+              } else {
+                $errors[] = 'Impossibile salvare il file immagine sul server. Controllare permessi.';
+                error_log('[UPLOAD] move_uploaded_file fallito src='. $f['tmp_name'] .' dest=' . $dest);
+              }
+            }
+          }
+        }
+        $stmt = $mysqli->prepare('CALL InserisciReward(?,?,?,?,?)');
+        if (!$stmt) { $errors[] = 'Prepare reward: '.htmlspecialchars($mysqli->error); break; }
+        $stmt->bind_param('sssss', $codice, $descr, $foto_path, $user_email, $nome_progetto);
+        if ($stmt->execute()) { $success[] = 'Reward inserita (codice: '.$codice.').'; } else { $errors[] = 'Errore reward: '.htmlspecialchars($stmt->error); }
         $stmt->close(); drain($mysqli); break;
       case 'edit_reward':
-        $codice=trim($_POST['codice']??''); $descr=trim($_POST['descrizione']??''); $foto=trim($_POST['foto']??'');
-        if($codice===''||$descr===''){ $errors[]='Codice e nuova descrizione obbligatori.'; break; }
-        $stmt=$mysqli->prepare('CALL ModificaReward(?,?,?,?)');
-        if(!$stmt){ $errors[]='Prepare modifica reward.'; break; }
-        $stmt->bind_param('ssss',$codice,$descr,$foto,$user_email);
-        if($stmt->execute()){ $success[]='Reward modificata.'; } else { $errors[]='Errore modifica reward: '.htmlspecialchars($stmt->error); }
+        $codice = trim($_POST['codice'] ?? ''); $descr = trim($_POST['descrizione'] ?? '');
+        if ($codice === '' || $descr === '') { $errors[] = 'Codice e nuova descrizione obbligatori.'; break; }
+        // Gestione upload opzionale: se arriva un file lo salvo e passo il nuovo path; altrimenti passiamo stringa vuota
+        $foto_path = '';
+        $upload_dir = __DIR__ . '/../../uploads/rewards/';
+        if (!is_dir($upload_dir)) @mkdir($upload_dir, 0755, true);
+        if (isset($_FILES['reward_foto_edit']) && $_FILES['reward_foto_edit']['error'] !== UPLOAD_ERR_NO_FILE) {
+          $f = $_FILES['reward_foto_edit'];
+          if ($f['error'] !== UPLOAD_ERR_OK) {
+            $errors[] = 'Errore upload immagine reward (modifica). Codice: '.intval($f['error']);
+          } else {
+            if (!is_uploaded_file($f['tmp_name'])) { $errors[] = 'File upload non valido.'; }
+            else {
+              $ext = pathinfo($f['name'], PATHINFO_EXTENSION);
+              $safe = preg_replace('/[^A-Za-z0-9._-]/','_', $codice . '_' . time() . '.' . $ext);
+              $dest = $upload_dir . $safe;
+              if (move_uploaded_file($f['tmp_name'], $dest)) {
+                $foto_path = '/uploads/rewards/' . $safe;
+              } else {
+                $errors[] = 'Impossibile salvare il file immagine sul server. Controllare permessi.';
+                error_log('[UPLOAD] move_uploaded_file fallito src='. $f['tmp_name'] .' dest=' . $dest);
+              }
+            }
+          }
+        }
+        $stmt = $mysqli->prepare('CALL ModificaReward(?,?,?,?)');
+        if (!$stmt) { $errors[] = 'Prepare modifica reward.'; break; }
+        $stmt->bind_param('ssss', $codice, $descr, $foto_path, $user_email);
+        if ($stmt->execute()) { $success[] = 'Reward modificata.'; } else { $errors[] = 'Errore modifica reward: '.htmlspecialchars($stmt->error); }
         $stmt->close(); drain($mysqli); break;
       case 'add_component':
         if($progetto['tipo_progetto']!=='hardware'){ $errors[]='Progetto non hardware.'; break; }
@@ -110,6 +166,7 @@ if($_SERVER['REQUEST_METHOD']==='POST') {
         if($progetto['tipo_progetto']!=='software'){ $errors[]='Progetto non software.'; break; }
         $nome_p=trim($_POST['nome_prof']??''); $comp=trim($_POST['competenza']??''); $liv=$_POST['livello']??'';
         if($nome_p===''||$comp===''||$liv===''){ $errors[]='Tutti i campi profilo obbligatori.'; break; }
+        if(!in_array($comp, $all_skills, true)) { $errors[]='Competenza non valida.'; break; }
         if(!ctype_digit($liv) || (int)$liv<0 || (int)$liv>5){ $errors[]='Livello deve essere 0..5.'; break; }
         $lvl=(int)$liv;
         $stmt=$mysqli->prepare('CALL InserisciProfilo(?,?,?,?,?)');
@@ -121,12 +178,23 @@ if($_SERVER['REQUEST_METHOD']==='POST') {
         if($progetto['tipo_progetto']!=='software'){ $errors[]='Progetto non software.'; break; }
         $nome_p=trim($_POST['nome_prof']??''); $comp=trim($_POST['competenza']??''); $liv=$_POST['livello']??'';
         if($nome_p===''||$comp===''||$liv===''){ $errors[]='Tutti i campi modifica profilo obbligatori.'; break; }
+        if(!in_array($comp, $all_skills, true)) { $errors[]='Competenza non valida.'; break; }
         if(!ctype_digit($liv) || (int)$liv<0 || (int)$liv>5){ $errors[]='Livello deve essere 0..5.'; break; }
         $lvl=(int)$liv;
         $stmt=$mysqli->prepare('CALL ModificaProfilo(?,?,?,?,?)');
         if(!$stmt){ $errors[]='Prepare modifica profilo.'; break; }
         $stmt->bind_param('ssiss',$nome_p,$comp,$lvl,$user_email,$nome_progetto);
-        if($stmt->execute()){ $success[]='Profilo modificato.'; } else { $errors[]='Errore modifica profilo: '.htmlspecialchars($stmt->error); }
+        try {
+          if($stmt->execute()){
+            $success[]='Profilo modificato.';
+          } else {
+            $errors[]='Errore modifica profilo: '.htmlspecialchars($stmt->error);
+          }
+        } catch (\mysqli_sql_exception $e) {
+          $errors[] = 'Errore modifica profilo: '.htmlspecialchars($e->getMessage());
+        } catch (\Throwable $e) {
+          $errors[] = 'Errore inatteso durante modifica profilo: '.htmlspecialchars($e->getMessage());
+        }
         $stmt->close(); drain($mysqli); break;
       case 'fund_project':
         // Finanziamento: progetto deve essere aperto. Non serve essere creatore.
@@ -134,10 +202,20 @@ if($_SERVER['REQUEST_METHOD']==='POST') {
         $importo = $_POST['importo'] ?? ''; $codice_reward = trim($_POST['codice_reward'] ?? '');
         if(!is_numeric($importo) || $importo<=0){ $errors[]='Importo non valido.'; break; }
         if($codice_reward===''){ $errors[]='Seleziona una reward.'; break; }
+        // Controllo: utente non può finanziare il proprio progetto
+        if($user_email === $progetto['creatore_email']) { $errors[] = 'Non puoi finanziare il tuo stesso progetto.'; break; }
         $stmt=$mysqli->prepare('CALL FinanziaProgetto(?,?,?,?)');
         if(!$stmt){ $errors[]='Prepare finanziamento.'; break; }
         $imp=(float)$importo; $stmt->bind_param('ssds',$user_email,$nome_progetto,$imp,$codice_reward);
-        if($stmt->execute()){ $success[]='Finanziamento registrato.'; } else { $errors[]='Errore finanziamento: '.htmlspecialchars($stmt->error); }
+        if($stmt->execute()){ $success[]='Finanziamento registrato.'; } else {
+          // Gestione duplicato/unique key: mostra messaggio amichevole
+          $err_msg = $stmt->error; $errno = $stmt->errno;
+          if($errno === 1062 || stripos($err_msg,'duplicate')!==false) {
+            $errors[] = 'Hai già effettuato un finanziamento per questo progetto in questa data.';
+          } else {
+            $errors[]='Errore finanziamento: '.htmlspecialchars($err_msg);
+          }
+        }
         $stmt->close(); drain($mysqli);
         // Aggiorna totale finanziato (trigger potrebbe aver chiuso il progetto se raggiunto budget)
         $stmt=$mysqli->prepare('SELECT COALESCE(SUM(importo),0) FROM Finanziamento WHERE nome_progetto=?');
@@ -150,12 +228,24 @@ if($_SERVER['REQUEST_METHOD']==='POST') {
       case 'apply_profile':
         if($progetto['tipo_progetto']!=='software'){ $errors[]='Progetto non software.'; break; }
         if(!$project_open){ $errors[]='Progetto chiuso.'; break; }
+        if($user_email === $progetto['creatore_email']) { $errors[] = 'Non puoi candidarti al tuo progetto.'; break; }
         $nome_prof_app = trim($_POST['nome_profilo'] ?? '');
         if($nome_prof_app===''){ $errors[]='Profilo mancante.'; break; }
         $stmt=$mysqli->prepare('CALL AggiungiCandidatura(?,?,?)');
         if(!$stmt){ $errors[]='Prepare candidatura: '.htmlspecialchars($mysqli->error); break; }
         $stmt->bind_param('sss',$user_email,$nome_progetto,$nome_prof_app);
-        if($stmt->execute()){ $success[]='Candidatura inviata.'; } else { $errors[]='Errore candidatura: '.htmlspecialchars($stmt->error); }
+        try {
+          if($stmt->execute()){
+            $success[]='Candidatura inviata.';
+          } else {
+            $err = $stmt->error ?: $mysqli->error;
+            $errors[] = 'Errore candidatura: '.htmlspecialchars($err);
+          }
+        } catch (\mysqli_sql_exception $e) {
+          $errors[] = 'Errore candidatura: '.htmlspecialchars($e->getMessage());
+        } catch (\Throwable $e) {
+          $errors[] = 'Errore inatteso durante candidatura: '.htmlspecialchars($e->getMessage());
+        }
         $stmt->close(); drain($mysqli); break;
       case 'manage_candidature':
         if(!$can_manage){ $errors[]='Permessi insufficienti.'; break; }
@@ -167,7 +257,10 @@ if($_SERVER['REQUEST_METHOD']==='POST') {
         $stmt=$mysqli->prepare('CALL GestisciCandidatura(?,?,?)');
         if(!$stmt){ $errors[]='Prepare gestione candidatura: '.htmlspecialchars($mysqli->error); break; }
         $stmt->bind_param('sis',$user_email,$cid,$decision);
-        if($stmt->execute()){ $success[]='Candidatura '.$decision.'.'; } else { $errors[]='Errore gestione candidatura: '.htmlspecialchars($stmt->error); }
+        if($stmt->execute()){ $success[]='Candidatura '.$decision.'.'; } else {
+            $err = $stmt->error ?: $mysqli->error;
+            $errors[] = 'Errore gestione candidatura: '.htmlspecialchars($err);
+        }
         $stmt->close(); drain($mysqli); break;
       case 'add_comment':
         if(!$project_open){ $errors[]='Progetto chiuso.'; break; }
@@ -236,6 +329,7 @@ form.inline-form { margin:1em 0; padding:0.5em; border:1px solid #ccc; }
 </style>
 </head>
 <body>
+<?php include_once __DIR__ . '/../../includes/topbar.php'; ?>
 <h1><?= htmlspecialchars($progetto['nome']) ?></h1>
 <p><strong>Creatore:</strong> <?= htmlspecialchars($progetto['creatore_email']) ?><br>
 <strong>Inserito il:</strong> <?= htmlspecialchars($progetto['data_inserimento']) ?><br>
@@ -253,7 +347,7 @@ form.inline-form { margin:1em 0; padding:0.5em; border:1px solid #ccc; }
 <section id="funding">
   <h2>Finanzia questo progetto</h2>
   <?php if(empty($reward_list)) { echo '<p>Nessuna reward disponibile al momento.</p>'; } else { ?>
-  <form method="post" class="inline-form">
+  <form method="post" class="inline-form" enctype="multipart/form-data">
     <input type="hidden" name="action" value="fund_project">
     <label>Importo (€)<br><input type="number" step="0.01" name="importo" required></label><br>
     <label>Reward<br>
@@ -287,20 +381,20 @@ form.inline-form { margin:1em 0; padding:0.5em; border:1px solid #ccc; }
   </ul>
   <?php } ?>
   <?php if($can_manage && $project_open): ?>
-  <form method="post" class="inline-form">
+  <form method="post" class="inline-form" enctype="multipart/form-data">
     <h3>Aggiungi Reward</h3>
     <input type="hidden" name="action" value="add_reward">
     <p><em>Il codice viene generato automaticamente.</em></p>
     <label>Descrizione<br><textarea name="descrizione" rows="3" required></textarea></label><br>
-    <label>Foto (URL/path)<br><input name="foto"></label><br>
+    <label>Foto (carica file)<br><input type="file" name="reward_foto_add" accept="image/*"></label><br>
     <button type="submit">Inserisci</button>
   </form>
-  <form method="post" class="inline-form">
+  <form method="post" class="inline-form" enctype="multipart/form-data">
     <h3>Modifica Reward</h3>
     <input type="hidden" name="action" value="edit_reward">
     <label>Codice (esistente)<br><input name="codice" required></label><br>
     <label>Nuova Descrizione<br><textarea name="descrizione" rows="3" required></textarea></label><br>
-    <label>Nuova Foto (URL/path)<br><input name="foto"></label><br>
+    <label>Nuova Foto (carica file)<br><input type="file" name="reward_foto_edit" accept="image/*"></label><br>
     <button type="submit">Salva</button>
   </form>
   <?php endif; ?>
@@ -365,7 +459,14 @@ form.inline-form { margin:1em 0; padding:0.5em; border:1px solid #ccc; }
     <h3>Aggiungi Profilo</h3>
     <input type="hidden" name="action" value="add_profile">
     <label>Nome<br><input name="nome_prof" required></label><br>
-    <label>Competenza<br><input name="competenza" required></label><br>
+    <label>Competenza<br>
+      <select name="competenza" required>
+        <option value="">-- scegli competenza --</option>
+        <?php foreach($all_skills as $sk): ?>
+          <option value="<?= htmlspecialchars($sk) ?>"><?= htmlspecialchars($sk) ?></option>
+        <?php endforeach; ?>
+      </select>
+    </label><br>
     <label>Livello (0-5)<br><input type="number" min="0" max="5" name="livello" required></label><br>
     <button type="submit">Inserisci</button>
   </form>
@@ -373,7 +474,14 @@ form.inline-form { margin:1em 0; padding:0.5em; border:1px solid #ccc; }
     <h3>Modifica Profilo</h3>
     <input type="hidden" name="action" value="edit_profile">
     <label>Nome (esistente)<br><input name="nome_prof" required></label><br>
-    <label>Nuova Competenza<br><input name="competenza" required></label><br>
+    <label>Nuova Competenza<br>
+      <select name="competenza" required>
+        <option value="">-- scegli competenza --</option>
+        <?php foreach($all_skills as $sk): ?>
+          <option value="<?= htmlspecialchars($sk) ?>"><?= htmlspecialchars($sk) ?></option>
+        <?php endforeach; ?>
+      </select>
+    </label><br>
     <label>Nuovo Livello (0-5)<br><input type="number" min="0" max="5" name="livello" required></label><br>
     <button type="submit">Salva</button>
   </form>

@@ -1,10 +1,11 @@
 <?php
 // public/admin_login.php (Versione mysqli)
 session_start();
+require_once __DIR__ . '/../includes/functions.php';
 
 if (isset($_SESSION['user_email']) && isset($_SESSION['is_admin_verified']) && $_SESSION['is_admin_verified'] === true) {
     // Già loggato E verificato come admin
-    header('Location: admin_dashboard.php');
+    header('Location: index.php');
     exit;
 }
 
@@ -18,6 +19,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     if (empty($email) || empty($password_raw) || empty($security_code_raw)) {
         $error = 'Email, password e codice di sicurezza sono obbligatori.';
+        log_to_mongo('WARN', 'Campi login admin mancanti', [
+            'ip' => $_SERVER['REMOTE_ADDR'] ?? null,
+            'route' => '/admin_login.php',
+            'method' => $_SERVER['REQUEST_METHOD'] ?? 'POST'
+        ], null, null);
     } else {
         // Cerca l'utente per email. Deve avere un codice sicurezza non nullo.
         $sql = "SELECT email, nickname, password, nome, cognome, codice_sicurezza
@@ -42,6 +48,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 {
                     // Login Amministratore Riuscito e VERIFICATO!
 
+                        // Log admin login riuscito
+                        log_to_mongo('INFO', 'Admin loggato con successo', [
+                            'ip' => $_SERVER['REMOTE_ADDR'] ?? null,
+                            'route' => '/admin_login.php',
+                            'method' => $_SERVER['REQUEST_METHOD'] ?? 'POST'
+                        ], $admin['email'], $admin['nickname']);
+
                     session_regenerate_id(true);
                     $_SESSION['user_email'] = $admin['email'];
                     $_SESSION['user_nickname'] = $admin['nickname'];
@@ -62,16 +75,28 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         $stmt_creator->close();
                     }
 
-                    header('Location: admin_dashboard.php'); // Reindirizza alla dashboard admin
+                    header('Location: index.php');
                     exit;
 
                 } else {
                     // Password o codice sicurezza errati
                     $error = 'Credenziali amministratore non valide o codice di sicurezza errato.';
+                    log_to_mongo('WARN', 'Tentativo admin login fallito: credenziali errate', [
+                        'ip' => $_SERVER['REMOTE_ADDR'] ?? null,
+                        'route' => '/admin_login.php',
+                        'method' => $_SERVER['REQUEST_METHOD'] ?? 'POST',
+                        'email_attempt' => $email
+                    ], null, $email);
                 }
             } else {
                 // Utente non trovato o non è un admin (codice sicurezza nullo)
                  $error = 'Credenziali amministratore non valide.';
+                 log_to_mongo('WARN', 'Tentativo admin login fallito: utente non trovato o non admin', [
+                     'ip' => $_SERVER['REMOTE_ADDR'] ?? null,
+                     'route' => '/admin_login.php',
+                     'method' => $_SERVER['REQUEST_METHOD'] ?? 'POST',
+                     'email_attempt' => $email
+                 ], null, $email);
             }
             $stmt->close();
         }
@@ -88,6 +113,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <style> .error { color: red; } </style>
 </head>
 <body>
+<?php include_once __DIR__ . '/../includes/topbar.php'; ?>
     <h1>Login Amministratore</h1>
 
     <?php if (!empty($error)): ?>

@@ -11,6 +11,7 @@ $nickname = htmlspecialchars($_SESSION['user_nickname']); // Usa htmlspecialchar
     <title>Profilo Utente</title>
 </head>
 <body>
+<?php include_once __DIR__ . '/../includes/topbar.php'; ?>
     <h1>Profilo di <?php echo $nickname; ?></h1>
     <p>Email: <?php echo htmlspecialchars($_SESSION['user_email']); ?></p>
     <p>Ruolo: <?php echo htmlspecialchars($_SESSION['user_ruolo']); ?></p>

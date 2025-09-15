@@ -2,13 +2,8 @@
 require_once '../../includes/functions.php';
 require_login();
 
-// Solo admin e creator
-$utente_autorizzato = check_permission(['creator', 'admin'], true);
-if (! $utente_autorizzato) {
-    header('HTTP/1.1 403 Forbidden');
-    echo '<p>Non hai i permessi per accedere a questa pagina.</p>';
-    exit;
-}
+// La lista progetti è visibile a tutti gli utenti autenticati. Il bottone 'Crea Nuovo Progetto'
+// è invece mostrato solo a creator/admin (vedi più sotto).
 
 // Connessione
 $host = 'localhost';
@@ -69,10 +64,19 @@ $conn->close();
     <style> li { margin-bottom: 1em; } </style>
 </head>
 <body>
+<?php include_once __DIR__ . '/../../includes/topbar.php'; ?>
 <h2>Ricerca Progetti</h2>
-<form action="create-view.php" method="get" style="margin-bottom:1em;">
-    <button type="submit">Crea Nuovo Progetto</button>
-</form>
+<?php if(!empty($_SESSION['flash_upload_error'])): ?>
+    <div style="background:#fee;border:1px solid #f99;padding:8px;margin-bottom:1em;">
+        <strong>Attenzione:</strong> <?= htmlspecialchars($_SESSION['flash_upload_error']) ?>
+    </div>
+    <?php unset($_SESSION['flash_upload_error']); ?>
+<?php endif; ?>
+<?php if (check_permission(['creator','admin'], true)): ?>
+    <form action="create-view.php" method="get" style="margin-bottom:1em;">
+        <button type="submit">Crea Nuovo Progetto</button>
+    </form>
+<?php endif; ?>
 <form method="GET">
     <label for="nome">Nome:</label>
     <input type="text" id="nome" name="nome" value="<?= htmlspecialchars($_GET['nome'] ?? '') ?>"><br>

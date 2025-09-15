@@ -15,7 +15,9 @@ $ruolo = $_SESSION['user_ruolo'] ?? 'user';
 <p>Benvenuto <?= htmlspecialchars($_SESSION['user_nickname'] ?? $_SESSION['user_email']) ?> (ruolo: <?= htmlspecialchars($ruolo) ?>)</p>
 <nav>
 	<a href="projects/search-view.php">Progetti</a>
+	<a href="profile.php">Profilo</a>
 	<a href="skill.php">Le mie Skill</a>
+	<a href="rewards/list_by_project.php">Rewards</a>
 	<a href="stats.php">Statistiche</a>
 	<?php if($ruolo==='admin' && !empty($_SESSION['is_admin_verified'])): ?>
 		<a href="admin_skill.php">Competenze</a>

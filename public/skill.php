@@ -1,6 +1,7 @@
 <?php
 // skill.php
 require_once '../includes/functions.php';
+log_to_mongo('INFO','Accesso gestione skill',[ 'route'=>'/skill.php','method'=>$_SERVER['REQUEST_METHOD']??'GET','ip'=>$_SERVER['REMOTE_ADDR']??null ], $_SESSION['user_email']??null, $_SESSION['user_nickname']??null);
 require_login();
 
 // Includi la connessione al database
@@ -24,6 +25,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $stmt->bind_param("sii", $user_email, $skill_id, $livello);
             $stmt->execute();
+            log_to_mongo('INFO','Skill aggiunta/aggiornata',[ 'skill_id'=>$skill_id,'livello'=>$livello ], $user_email, $_SESSION['user_nickname']??null);
             $stmt->close();
             $mysqli->next_result();
         }
@@ -38,6 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $stmt->bind_param("si", $user_email, $skill_id);
             $stmt->execute();
+            log_to_mongo('INFO','Skill eliminata',[ 'skill_id'=>$skill_id ], $user_email, $_SESSION['user_nickname']??null);
             $stmt->close();
             $mysqli->next_result();
         }
@@ -53,6 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $stmt->bind_param("sii", $user_email, $skill_id, $livello);
             $stmt->execute();
+            log_to_mongo('INFO','Skill livello modificato',[ 'skill_id'=>$skill_id,'livello'=>$livello ], $user_email, $_SESSION['user_nickname']??null);
             $stmt->close();
             $mysqli->next_result();
         }
@@ -92,6 +96,7 @@ $mysqli->next_result();
     <title>Gestione Skill</title>
 </head>
 <body>
+<?php include_once __DIR__ . '/../includes/topbar.php'; ?>
     <h1>Gestisci le tue Skill</h1>
 
     <!-- Form per aggiungere o aggiornare una Skill -->
