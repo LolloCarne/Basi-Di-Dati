@@ -1,9 +1,9 @@
 DELIMITER //
 
--- Crea la procedura
+
 CREATE PROCEDURE `PromuoviUtenteAdAdmin` (
-    IN `userEmail` VARCHAR(255),         -- Input: Email dell'utente da promuovere
-    IN `securityCodeHash` VARCHAR(255)  -- Input: Codice di sicurezza GIA' HASHATO da PHP
+    IN `userEmail` VARCHAR(255),         
+    IN `securityCodeHash` VARCHAR(255)  
 )
 BEGIN
     DECLARE userExists INT DEFAULT 0;
@@ -18,15 +18,15 @@ BEGIN
     IF userExists > 0 THEN
         UPDATE Utente
         SET
-            codice_sicurezza = securityCodeHash -- Imposta l'hash ricevuto
+            codice_sicurezza = securityCodeHash 
         WHERE
             email = userEmail;
     ELSE
-        SIGNAL SQLSTATE '45000' -- Codice di errore generico per errori definiti dall'utente
+        SIGNAL SQLSTATE '45000' 
             SET MESSAGE_TEXT = 'Errore: Utente non trovato con la mail specificata.';
     END IF;
 
 END //
 
--- Ripristina il delimitatore standard
+
 DELIMITER ;
