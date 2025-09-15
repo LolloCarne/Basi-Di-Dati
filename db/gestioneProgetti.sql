@@ -12,7 +12,7 @@ CREATE PROCEDURE InserisciProgetto(
 BEGIN
     DECLARE creatore_esiste INT;
     
-    -- Controlla se l'utente è un creatore
+   
     SELECT COUNT(*) INTO creatore_esiste FROM Creatore WHERE utente_email = p_creatore_email;
     
     IF creatore_esiste = 1 THEN
@@ -115,23 +115,22 @@ BEGIN
     DECLARE creatore_esiste INT;
     DECLARE progetto_creatore_email VARCHAR(255);
     
-    -- Controlla se il reward esiste
+    
     SELECT COUNT(*) INTO reward_esiste 
     FROM Reward 
     WHERE codice = p_codice;
     
-    -- Se il reward esiste, recupera l'email del creatore del progetto associato
-    IF reward_esiste = 1 THEN
-        -- Recupera l'email del creatore del progetto a cui il reward è associato
+    
+       
         SELECT p.creatore_email INTO progetto_creatore_email
         FROM Reward r
         JOIN RewardProgetto rp ON r.codice = rp.codice_reward
         JOIN Progetto p ON rp.id_progetto = p.nome
         WHERE r.codice = p_codice;
         
-        -- Controlla se l'utente che vuole fare la modifica è il creatore del progetto
+
         IF progetto_creatore_email = p_creatore_email THEN
-            -- Aggiorna la reward
+            
             UPDATE Reward 
             SET descrizione = p_descrizione, foto = p_foto
             WHERE codice = p_codice;
